@@ -41,8 +41,7 @@ class Server {
     this.ns = ns;
     this.name = name,
     this.server = ns.getServer(name);
-    //this.root = ns.hasRootAccess(name),
-    this.root = this.attempt_nuke();
+    this.root = ns.hasRootAccess(name) || this.attempt_nuke();
     this.level = ns.getServerRequiredHackingLevel(name),
     this.nuke_ports = ns.getServerNumPortsRequired(name),
     this.money = ns.getServerMoneyAvailable(name),
