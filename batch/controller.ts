@@ -1,53 +1,117 @@
 import { NS } from '@ns';
+import {Treenode, VALID_KEYS} from 'utils/treenode';
 
 const TICK = 5; // Time per cycle step
 
-type Treenode = {
+type Target = {
   name: string,
-  children?: Treenode[],
-  cct?: any[],
-  root?: boolean,
-  ram?: number,
-  free?: number,
-  level?: number,
-  nuke?: number,
-  money?: number,
-  max_money?: number,
-  security?: number,
-  min_sec?: number,
-  ratio?: number,
-  value?: number,
-  upgrade_cost?: number,
-  properties?: any[],
-};
+  pid: number,
+}
 
-const VALID_KEYS = [
-  'name',
-  'children',
-  'cct',
-  'root',
-  'ram',
-  'free',
-  'level',
-  'nuke',
-  'money',
-  'max_money',
-  'security',
-  'min_sec',
-  'ratio',
-  'value',
-  'upgrade_cost',
-  'properties',
-];
-
-function nuke_node(ns: NS, node: string, files: Array<string>) {
-  if('brutessh.exe' in files) ns.brutessh(node);
-  if('ftpcrack.exe' in files) ns.ftpcrack(node);
-  if('relaysmtp.exe' in files) ns.relaysmtp(node);
-  if('httpworm.exe' in files) ns.httpworm(node);
-  if('sqlinject.exe' in files) ns.sqlinject(node);
+function nuke_node(ns: NS, node: string) 
+{
+  if(ns.fileExists('BruteSSH.exe', 'home')) ns.brutessh(node);
+  if(ns.fileExists('FTPCrack.exe', 'home')) ns.ftpcrack(node);
+  if(ns.fileExists('relaySMTP.exe', 'home')) ns.relaysmtp(node);
+  if(ns.fileExists('HTTPWorm.exe', 'home')) ns.httpworm(node);
+  if(ns.fileExists('SQLInject.exe', 'home')) ns.sqlinject(node);
 
   ns.nuke(node);
+}
+
+class Server {
+  private ns: NS;
+
+  name: string;
+  server: any;
+  root: boolean;
+  ram: number;
+  ram_used: number;
+  level: number;
+  nuke_ports: number;
+  money: number;
+  max_money: number;
+  security: number;
+  min_security: number;
+  children?: Treenode[];
+  cct?: any[];
+  properties?: any[];
+
+  constructor(ns: NS, name: string) {
+    this.ns = ns;
+    this.name = name,
+    this.server = ns.getServer(name);
+    //this.root = ns.hasRootAccess(name),
+    this.root = this.attempt_nuke();
+    this.level = ns.getServerRequiredHackingLevel(name),
+    this.nuke_ports = ns.getServerNumPortsRequired(name),
+    this.money = ns.getServerMoneyAvailable(name),
+    this.max_money = ns.getServerMaxMoney(name),
+    this.security = ns.getServerSecurityLevel(name),
+    this.min_security = ns.getServerMinSecurityLevel(name),
+    this.ram = ns.getServerMaxRam(name),
+    this.ram_used = ns.getServerUsedRam(name)
+  }
+
+  get ram_free(): number {
+    return this.ram - this.ram_used;
+  }
+
+  get points(): number {
+    return Math.floor(this.money / this.min_security);
+  }
+
+  get points_str(): string {
+    return `${this.ns.formatNumber(this.points)}`;
+  }
+
+  get money_str(): string {
+    return `$${this.ns.formatNumber(this.money)}`;
+  }
+
+  get max_money_str(): string {
+    return `$${this.ns.formatNumber(this.max_money)}`;
+  }
+
+  get ram_str(): string {
+    return `${this.ns.formatRam(this.ram)}`;
+  }
+
+  get ram_used_str(): string {
+    return `${this.ns.formatRam(this.ram_used)}`;
+  }
+
+  get ram_free_str(): string {
+    return `${this.ns.formatRam(this.ram_free)}`;
+  }
+
+  attempt_nuke(): boolean {
+    const ns = this.ns;
+    const programs = [
+      { file: 'BruteSSH.exe', fn: ns.brutessh },
+      { file: 'FTPCrack.exe', fn: ns.ftpcrack },
+      { file: 'relaySMTP.exe', fn: ns.relaysmtp },
+      { file: 'HTTPWorm.exe', fn: ns.httpworm },
+      { file: 'SQLInject.exe', fn: ns.sqlinject },
+    ];
+
+    let count = 0;
+    for (const each of programs) {
+      if (ns.fileExists(each.file, 'home')) {
+        each.fn(this.name);
+        count++;
+      }
+    }
+
+    if(count >= this.nuke_ports){
+      return ns.nuke(this.name);
+    }
+    return false;
+  }
+
+  find_cct(): Array<string> {
+    return this.ns.ls(this.name, '.cct');
+  }
 }
 
 /**
@@ -80,11 +144,11 @@ function scan_network(
   const port_exe = ['brutessh.exe', 'ftpcrack.exe', 'relaysmtp.exe', 'httpworm.exe', 'sqlinject.exe'];
   const my_exe = ns.ls('home', '.exe').filter(file => port_exe.includes(file.toLowerCase()));
   if (
-    node.level < ns.getHackingLevel()
+    node.level <= ns.getHackingLevel()
     && !node.root
     && node.nuke <= my_exe.length
   ) {
-    nuke_node(ns, node.name, my_exe);
+    nuke_node(ns, node.name);
     node.root = ns.hasRootAccess(node.name);
   }
 
@@ -137,7 +201,7 @@ function scan_network(
     opt_target != undefined
     && node.name !== 'home' 
     && node.root
-    && node.level < Math.floor(ns.getHackingLevel() / 2)
+    && node.level <= Math.ceil(ns.getHackingLevel() / 2)
     && node.money > 0
   ) opt_target.push(node);
 
@@ -145,83 +209,25 @@ function scan_network(
   return node;
 }
 
-
-function prep_server(ns: NS, target: string) {
-  let server_sec = ns.getServerSecurityLevel(target);
-  let server_min = ns.getServerMinSecurityLevel(target);
-  let weaken_threads = (server_sec - server_min) / 0.05;
-
-  ns.print(weaken_threads.toString());
-
+function print_valid_targets(ns: NS, optimal: Array<Treenode>)
+{
+  ns.print(`There are ${optimal.length} valid targets.`);
+  optimal.forEach((server) => {
+    ns.print(`${server.name} - $${ns.formatNumber(server.max_money)}:${server.min_sec} => ${server.ratio} pts`);
+  })
 }
 
-/* Manages servers the player can/has puchased
- * Will try to buy 8GB servers until the purchase cap
- * After that it will try to iteratively upgrade servers to the data cap.
- * @params {NS} - ns - allows NetScape functions
- */
-function manage_servers(ns: NS) {
-  ns.disableLog('ALL');
-
-  let ram_arr: Array<number> = [];
-  for (let s = 1; s < 21; s++) {
-    let ram = 2 ** s;
-    ram_arr.push(ram);
-  }
-
-  let servers: Array<Treenode> = [];
-  /* Try to buy servers until the max */
-  /* If it does, bail from function */
-  if(ns.getPurchasedServers().length < 25
-  && ns.getPurchasedServerCost(8) < Math.floor(ns.getServerMoneyAvailable('home')/2)){
-    let name = ns.purchaseServer('mnt', 8); 
-    ns.prompt(`Purchased Server: ${name} for ${ns.getPurchasedServerCost(8)}`);
-    return;
-  }
-
-  /* Build an array of current servers */
-  ns.getPurchasedServers().forEach((server_name) => {
-    let ram = ns.getServerMaxRam(server_name);
-    let value = ns.getPurchasedServerCost(ram);
-    let upgrade = (ram: number) => {
-      return ns.getPurchasedServerCost(
-        ram_arr[Math.min(ram_arr.indexOf(ram)+1, ram_arr.length-1)]
-      ) - value;
-    } 
-    servers.push({
-      name: server_name,
-      ram: ram,
-      value: value,
-      upgrade_cost: upgrade(ram),
-    })
-  })
-  
-  /* Sort servers by upgrade cost from low to high */
-  servers.sort((a,b) => a.upgrade_cost - b.upgrade_cost);
-
-  /* Buy the cheapest server, if you can 
-   * Stops buying when they cost more than half of your current money
-   */
-  if(servers[0].upgrade_cost < Math.floor(ns.getServerMoneyAvailable('home')/2)
-  && servers[0].upgrade_cost != 0) {
-    let name = servers[0].name;
-    let ram = servers[0].ram;
-    let nex_ram = ram_arr[ram_arr.indexOf(ram)+1];
-    let cost = servers[0].upgrade_cost;
-
-    ns.upgradePurchasedServer(name, nex_ram);
-    ns.prompt(`${servers[0].name} has been upgraded from ${ns.formatRam(ram)} to ${ns.formatRam(nex_ram)} for $${ns.formatNumber(cost)}!`);
-  }
-
-  ns.enableLog('ALL');
+function print_current_targets(ns: NS, targets: Array<Target>)
+{
+  ns.print(`Currently attacking ${targets.length} targets.`);
+  targets.forEach((server) => ns.print(`${server.name} on PID ${server.pid}`));
 }
 
 export async function main(ns: NS): Promise<void> {
   ns.ui.setTailTitle(`Network Controller ${ns.formatRam(ns.getScriptRam('batch/controller.js', 'home'))}`);
   ns.ui.openTail();
 
-  let managed_targets: Array<string> = [];
-  let managed_pids: Array<number> = [];
+  let managed_target: Array<Target> = [];
 
   let i = 0;
 
@@ -230,39 +236,45 @@ export async function main(ns: NS): Promise<void> {
     let node_arr: Array<Treenode> = [];
     let opt_arr: Array<Treenode> = [];
 
-    // Try to upgrade/buy purchased servers
-    manage_servers(ns); 
     // Update the current state of the network
-    scan_network(ns, node_arr, 'home', undefined, opt_arr); 
-
-    let hack_time = ns.getHackTime('home'); //time in milliseconds
-    let weak_time = hack_time * 4;
-    let grow_time = hack_time * 3.2;
-
-    const weak_ram = ns.getScriptRam('batch/weaken_server.js', 'home');
+    scan_network(ns, node_arr, 'home', undefined, opt_arr);
+    opt_arr.sort((a, b) => b.ratio - a.ratio);
 
     ns.clearLog();
-    ns.print(`Iteration: ${i}`);
 
-    ns.print(`There are ${opt_arr.length} valid targets.`);
-    opt_arr.sort((a, b) => b.ratio - a.ratio);
-    opt_arr.forEach((node) => ns.print(`${node.name}: $${ns.formatNumber(node.max_money).toString()}:${node.min_sec.toString()} = ${node.ratio}`));
+    if(opt_arr.length > 0){
+      print_valid_targets(ns, opt_arr);
+      if(managed_target.length > 0) print_current_targets(ns, managed_target);
+      
+      /* Always attack the most potent target */
+      let launch = {
+        target: JSON.stringify(opt_arr[0]),
+        name: opt_arr[0].name,
+        script: ['/batch/scheduler.js', '/batch/thread_weak.js', '/batch/thread_grow.js', '/batch/thread_hack.js'],
+        host: opt_arr[0].name,
+        threads: 1,
+        manage_pid: ns.pid,
+      }
 
-    let launch = {
-      target: JSON.stringify(opt_arr[0]),
-      name: opt_arr[0].name,
-      script: ['/batch/scheduler.js', '/batch/thread_weak.js', '/batch/thread_grow.js', '/batch/thread_hack.js'],
-      host: 'mnt',
-      threads: 1,
-      manage_pid: ns.pid,
+      if(managed_target.length == 0 ||  managed_target[0].name != launch.name) {
+        /* Sent the scripts to the target */
+        ns.scp(launch.script, launch.host);
+        let script_pid = ns.exec(launch.script[0], launch.host, launch.threads, launch.target, launch.manage_pid);
+        if(script_pid!=0) managed_target[0] = {name: launch.name, pid: script_pid};
+      }
     }
 
-    if(!(managed_targets.includes(launch.name))) {
-      managed_targets.push(launch.name);
-      ns.scp(launch.script, launch.host);
-      let script_pid = ns.exec(launch.script[0], launch.host, launch.threads, launch.target, launch.manage_pid);
-      managed_pids.push(script_pid);
-    }
+    managed_target.forEach((scheduler) => {
+      ns.print(`Writing Network Status to ${scheduler.name} on port ${scheduler.pid}.`);
+      let network_status = {
+        network_update: {
+          servers: node_arr,
+          optimal: opt_arr,
+          target: opt_arr[0],
+        }
+      }
+      ns.writePort(scheduler.pid, JSON.stringify(network_status));
+    })
 
     let end_time = Date.now();
     ns.print(`Runtime: ${end_time - start_time} ms`);

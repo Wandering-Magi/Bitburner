@@ -1,5 +1,5 @@
 import { NS } from "@ns";
-import {Treenode} from "/utils/variables.js";
+import {Treenode} from "utils/treenode";
 
 let RAM_ARR: Array<number> = [];
 for (let s = 1; s < 21; s++) {
@@ -42,7 +42,7 @@ function get_purchased_nodes(ns: NS)
     const value = ns.getPurchasedServerCost(ram);
     let upgrade = (ram: number) => {
       return ns.getPurchasedServerCost(
-        RAM_ARR[Math.min(RAM_ARR.indexOf(ram)+1, RAM_ARR.lengeth-1)]
+        RAM_ARR[Math.min(RAM_ARR.indexOf(ram)+1, RAM_ARR.length-1)]
       ) - value;
     }
 
@@ -125,5 +125,7 @@ export async function main(ns: NS): Promise<void> {
     /* Log Management */
     ns.ui.setTailTitle(`Server Manager | ${ns.formatRam(ns.getScriptRam('/managers/server_manager.js'))}`);
     ns.clearLog();
+
+    await ns.sleep(delay * 1000);
   }
 }
