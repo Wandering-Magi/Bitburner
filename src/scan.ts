@@ -117,11 +117,6 @@ function scan_children(
     
     /* ports */
     child_node.nuke = ns.getServerNumPortsRequired(child_node.name);
-    if(
-      child_node.nuke <= PORT_HACKS 
-      && child_node.level <= ns.getHackingLevel()
-      && !child_node.root
-    ) nuke_node(ns, child_node.name);
     
     /* check root access */
     child_node.root = ns.hasRootAccess(child_node.name);
@@ -308,7 +303,7 @@ export async function main(ns: NS){
     let nodes:Treenode = {name: "home"};
 
     scan_children(ns, node_list, "", "home", 1, data.depth, nodes);
-
+    
     if(data.tree) print_tree(ns, nodes, undefined, undefined, data.tree);
     print_network(ns, node_list, data._);
 
