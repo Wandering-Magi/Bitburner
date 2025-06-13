@@ -5,7 +5,7 @@ function build_network_tree(ns: NS, target: string)
   let server = {
     name: target,
     children: [],
-    cct: ns.ls(target, '.cct');
+    cct: ns.ls(target, '.cct'),
   }
 
   let arr_children = ns.scan(target);

@@ -1,3 +1,4 @@
+import {NS} from '@ns';
 import {Server_Base} from "./basic";
 
 export class Server_Nuke extends Server_Base {

@@ -46,6 +46,8 @@ export class Server_Base implements i_Server{
   nuke_ports: number | 0;
   children:   Array<Server_Base>;
 
+  private _serverCache?: Server;
+
   constructor(ns: NS, name: string) {
     this.ns         = ns;
     this.name       = name;
@@ -65,7 +67,10 @@ export class Server_Base implements i_Server{
   };
 
   get server(){
-    return this.ns.getServer(this.name)
+    if(!this._serverCache) {
+      this._serverCache = this.ns.getServer(this.name);
+    }
+    return this._serverCache; 
   };
 
   get free_ram(): number {
@@ -112,6 +117,45 @@ export class Server_Base implements i_Server{
       CUR_RAM: this.ram_free_str,
       MAX_RAM: this.ram_str,
     })
+  }
+
+  get network_packet(): Object {
+    let buffer = {
+      name       : this.name,
+      ip         : this.ip,
+      backdoor   : this.backdoor,
+      root       : this.root,
+      level      : this.level,
+      cur_sec    : this.cur_sec,
+      min_sec    : this.min_sec,
+      max_ram    : this.max_ram,
+      used_ram   : this.used_ram,
+      cores      : this.cores,
+      money      : this.money,
+      max_money  : this.max_money,
+      nuke_ports : this.nuke_ports,
+      grid_JSON  : this.grid_JSON,
+      children   : [],
+    }
+
+    return JSON.stringify({
+      name: this.name,
+      level: this.level,
+      points: this.points,
+      points_str: this.points_str,
+      ports: this.nuke_ports,
+      root: this.root,
+      money: this.money,
+      money_str: this.money_str,
+      max_money: this.max_money,
+      max_money_str: this.max_money_str,
+      cur_ram: this.ram_free_str,
+      max_ram: this.ram_str,
+    })
+  }
+
+  refreshServerCache() {
+    this._serverCache = this.ns.getServer(this.name);
   }
 
   toJSON() {
