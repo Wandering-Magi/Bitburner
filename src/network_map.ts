@@ -22,7 +22,7 @@ function build_network_tree(ns: NS, target: string)
 
 function print_tree(
   ns: NS,
-  node: Object,
+  node: [],
   prefix: string = "",
   isLast: boolean = true,
   list_properties: boolean = false,

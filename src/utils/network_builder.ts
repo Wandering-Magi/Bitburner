@@ -1,4 +1,5 @@
-import {Server_Nuke} from './server/nuke';
+import {NS} from '@ns';
+import {Server_Break} from './server/break';
 
 /**
  * Recursive function meant to produce a depth-first tree of the network
@@ -9,20 +10,18 @@ import {Server_Nuke} from './server/nuke';
  */
 export function build_network_tree(ns: NS, target: string)
 {
-  let server = new Server_Nuke(ns, target);
-
-  /* Attempt to open all ports */
-  if(server.ports_open < 5) server.open_ports();
-  /* Attempt to nuke the server */
-  if(!server.root) server.nuke();
+  const server = new Server_Break(ns, target);
+  
+  /* Open as many ports as possible and try to nuke the server */
+  server.break();
 
   /* Get the array of connected servers, remove the parent node */
-  let arr_children = ns.scan(target);
+  const arr_children = ns.scan(target);
   /* Stop it from infinite recursion */
   if(target != 'home') arr_children.shift();
 
   /* Build a server obj for each child */
-  arr_children.forEach((child) => {
+  arr_children.forEach((child: string) => {
     server.children.push(
       build_network_tree(ns, child)
     );
