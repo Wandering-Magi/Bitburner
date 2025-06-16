@@ -89,12 +89,7 @@ export class Server_Security implements SecurityGets {
   min: number;
   current: number;
 
-  constructor(
-    backdoor: boolean,
-    root: boolean,
-    min: number,
-    current: number,
-  ) {
+  constructor(backdoor: boolean, root: boolean, min: number, current: number) {
     this.backdoor = backdoor;
     this.root = root;
     this.min = min;
@@ -266,7 +261,7 @@ export class Server_String implements ServerGets {
       ports.ssh,
       ports.sql,
       ports.http,
-      ports.smtp
+      ports.smtp,
     );
     this.children = children;
   }
@@ -311,6 +306,14 @@ export class Server_String implements ServerGets {
       money: {
         current: this.money.current,
         max: this.money.max,
+      },
+      ports: {
+        required: this.ports.required,
+        ftp: this.ports.ftp,
+        ssh: this.ports.ssh,
+        sql: this.ports.sql,
+        http: this.ports.http,
+        smtp: this.ports.smtp,
       },
       children: this.children.map((child) => JSON.parse(child.network_packet)),
     });

@@ -61,6 +61,7 @@ interface MachineGets extends MachineStats {
     start: number;
     end: number;
     readonly total: number;
+    average: Array<number>;
   };
 }
 
@@ -74,6 +75,7 @@ class StateMachine implements MachineGets {
     start: number;
     end: number;
     readonly total: number;
+    average: Array<number>;
   };
   logging: {
     debug: boolean;
@@ -100,6 +102,7 @@ class StateMachine implements MachineGets {
       get total() {
         return this.end - this.start;
       },
+      average: [],
     };
     this.logging = {
       debug: true,
@@ -127,6 +130,7 @@ class StateMachine implements MachineGets {
           case "initial":
             this.ns.disableLog("scan");
             this.ns.disableLog("sleep");
+            this.ns.disableLog('getHackingLevel');
             this.ns.clearLog();
             this.start_state();
             this.change_state("scan_network");
@@ -158,7 +162,7 @@ class StateMachine implements MachineGets {
 
           case "idle":
             this.start_state();
-            this.DEBUG(LogLevel.INFO, "run", `Total Runtime`);
+            this.DEBUG(LogLevel.INFO, "run", `Runtime | Total:${this.runtime.total} | Average:${this.avg_runtime()}`);
             await this.ns.sleep(100);
             this.runtime.start = Date.now();
             this.ns.clearLog();
@@ -199,7 +203,9 @@ class StateMachine implements MachineGets {
 
     this.runtime.end = Date.now();
     const now = new Date();
-    const timestamp = now.toISOString().slice(11, 23); //HH:mm:ss.sss
+    const pad = (n: number, z = 2) => n.toString().padStart(z, "0");
+    //const timestamp = now.toISOString().slice(11, 23); //HH:mm:ss.sss
+    const timestamp = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad(now.getMilliseconds(), 3)}`;
     const s_label =
       label.length > 5
         ? label.slice(0, 6).toUpperCase()
@@ -211,6 +217,16 @@ class StateMachine implements MachineGets {
       .join(" | ");
 
     this.ns.print(`INFO | ${timestamp} | ${s_label} | ${s_time} | ${s_args}`);
+  }
+
+  private avg_runtime() {
+    const dec = 1;
+    this.runtime.average.push(this.runtime.total);
+    if(this.runtime.average.length > 100) this.runtime.average.shift();
+    let sum = 0;
+    this.runtime.average.forEach((n) => sum+=n);
+    const avg = sum / this.runtime.average.length;
+    return Math.trunc(avg * 10**dec) / 10**dec;
   }
 
   change_state(next_state: State) {
