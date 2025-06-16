@@ -1,13 +1,15 @@
 import { NS } from "@ns";
 
-export type Constructor<T = object> = new (...args: any[]) => T;
-export type Transitions<S extends string> = Record<S, readonly S[]>;
-
+type Constructor<T = object> = new (...args: any[]) => T;
 interface HasNS {
   ns: NS;
 }
 
-export interface i_StateMachine {
+/* Transition type so that a script can define the transition table locally */
+export type Transitions<S extends string> = Record<S, readonly S[]>;
+
+export interface StateMachine {
+  state: string;
   transition(nextState: string): void;
 }
 

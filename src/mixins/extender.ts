@@ -13,8 +13,14 @@ type MixinReducer<TBase extends Constructor> = (
   mixin: Mixin<TBase, Constructor>
 ) => Constructor;
 
+type MixinChain<TBase, TMixins extends any[]> =
+  TMixins extends [infer First, ...infer Rest]
+  ? First extends (base: any) => infer Next
+  ? MixinChain<Next, Rest>
+  : never
+  : TBase;
 
-export interface i_Base {
+export interface Base {
   ns: NS;
 }
 /**
@@ -32,13 +38,13 @@ export class Base {
 
 //export const extender = (...parts: any[]) => parts.reduce(creator, Base_Class);
 export function extender<
-TBase extends Constructor, 
-TMixins extends Array<Mixin<any, any>> 
+  TBase extends Constructor,
+  TMixins extends Array<Mixin<any, any>>
 >(
   Base: TBase,
   ...mixins: TMixins
-): TMixins extends Array<Mixin<any, infer TLast>> ? TLast : TBase {
-  return mixins.reduce(creator, Base) as any;
+): MixinChain<TBase, TMixins> {
+  return mixins.reduce(creator, Base) as MixinChain<TBase, TMixins>;
 }
 /** 
  * allMixins is the accumulator 

@@ -1,7 +1,7 @@
 import { NS } from "@ns";
-import { Base, i_Base, extender } from "/mixins/extender";
-import { StateMachine, i_StateMachine, Transitions } from "/mixins/state_machine";
-import { Logger, i_Logger } from "/mixins/logger";
+import { Base, extender } from "/mixins/extender";
+import { StateMachine, Transitions } from "/mixins/state_machine";
+import { Logger } from "/mixins/logger";
 
 type MyState =
   | "initial"
@@ -24,7 +24,7 @@ const myTransitions: Transitions<MyState> = {
   kill: [],
 };
 
-interface MyTest extends i_Base, i_StateMachine, i_Logger {}
+interface MyTest extends Base, StateMachine, Logger { }
 
 class MyTest extends extender(Base, StateMachine(myTransitions, "initial"), Logger) {
   constructor(ns: NS) {

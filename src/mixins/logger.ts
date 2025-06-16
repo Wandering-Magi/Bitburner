@@ -1,6 +1,6 @@
 import { NS } from "@ns";
 
-export type Constructor<T = object> = new (...args: any[]) => T;
+type Constructor<T = object> = new (...args: any[]) => T;
 interface HasNS {
   ns: NS;
 }
@@ -10,27 +10,26 @@ export enum LogLevel {
   INFO = "INFO",
   WARN = "WARN",
   ERROR = "ERROR",
+  VERBOSE = "VERBOSE"
 }
 
-export interface i_Logger {
-  logging: {
-    debug: boolean;
-    info: boolean;
-    warn: boolean;
-    error: boolean;
-  };
+type Logging = {
+  debug: boolean;
+  info: boolean;
+  warn: boolean;
+  error: boolean;
+  verbose: boolean;
+}
+export interface Logger {
+  logging: Logging;
+  set_logging(levels: Partial<Logging>): void;
   LOG(level: LogLevel, label: string, ...args: unknown[]): void;
 }
 
 // eslint-disable-next-line
 export const Logger = <TBase extends Constructor<HasNS>>(Base: TBase) =>
   class extends Base {
-    logging: {
-      debug: boolean;
-      info: boolean;
-      warn: boolean;
-      error: boolean;
-    };
+    logging: Logging;
     constructor(...args: any[]) {
       super(...args);
       this.logging = {
@@ -38,6 +37,33 @@ export const Logger = <TBase extends Constructor<HasNS>>(Base: TBase) =>
         info: false,
         warn: false,
         error: false,
+        verbose: false,
+      };
+    }
+
+    /**
+     * Method to quickly turn logging values on or off
+     * @param {object} levels - an object with keys for the logging object
+     *                          Each key is optional and can be set to true or false.
+     *                          If the 'verbose' key is true, all logging levels are enabled.
+     * @example
+     * set_logging({debug: true, info: true});
+     * @example
+     * set_logging({info: false, error: true});
+     * @example
+     * set_logging({verbose: true}); 
+     */
+    public set_logging(levels: Partial<Logging>) {
+      /* Turn everything on if verbose is turned on */
+      if (levels.verbose === true) {
+        Object.keys(this.logging).forEach((key) => {
+          this.logging[key as keyof typeof this.logging] = true;
+        });
+        return;
+      }
+      this.logging = {
+        ...this.logging,
+        ...levels,
       };
     }
 
@@ -53,7 +79,7 @@ export const Logger = <TBase extends Constructor<HasNS>>(Base: TBase) =>
      *
      * INFO | 12:34:56.789 | INFOR | Hello World!
      */
-    LOG(level: LogLevel, label: string, ...args: unknown[]) {
+    public LOG(level: LogLevel, label: string, ...args: unknown[]) {
       /* Early exit when not logging */
       if (!this.logging[level.toLowerCase() as keyof typeof this.logging])
         return;
@@ -61,10 +87,10 @@ export const Logger = <TBase extends Constructor<HasNS>>(Base: TBase) =>
       /* Timestamp in HH:mm:ss.zsss format */
       const now = new Date();
       const pad = (n: number, z = 2) => n.toString().padStart(z, "0");
-      const timestamp = 
-        `${pad(now.getHours())}:`+
-        `${pad(now.getMinutes())}:`+
-        `${pad(now.getSeconds())}.`+
+      const timestamp =
+        `${pad(now.getHours())}:` +
+        `${pad(now.getMinutes())}:` +
+        `${pad(now.getSeconds())}.` +
         `${pad(now.getMilliseconds(), 3)}`;
 
       /* Render all lables in uppercase 
