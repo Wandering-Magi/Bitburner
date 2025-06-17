@@ -30,7 +30,7 @@ type MixinChain<TBase, TMixins extends any[]> = TMixins extends [
  * @param {NS} ns - The Bitburner NetScape object, required by everything
  */
 export class Prime {
-  ns: NS;
+ readonly ns: NS;
   constructor(ns: NS) {
     this.ns = ns;
   }
@@ -45,7 +45,7 @@ export class Prime {
  */
 export const Base = Logger(Prime);
 export interface Base extends Logger {
-  ns: NS;
+ readonly ns: NS;
 }
 
 //export const extender = (...parts: any[]) => parts.reduce(creator, Base_Class);

@@ -2,7 +2,7 @@ import { NS } from "@ns";
 
 type Constructor<T = object> = new (...args: any[]) => T;
 interface HasNS {
-  ns: NS;
+ readonly ns: NS;
 }
 
 export enum LogLevel {

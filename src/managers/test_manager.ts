@@ -1,8 +1,10 @@
 import { NS } from "@ns";
 import { Base, extender } from "/mixins/extender";
-import { LogLevel } from "/mixins/logger";
+import { Logger, LogLevel } from "/mixins/logger";
 import { StateMachine, Transitions } from "/mixins/state_machine";
 import { Telecoms } from "/mixins/telecom";
+import { BreakGets, Server_Break } from "/utils/server/break";
+import { ServerGets } from "/utils/server/string";
 
 type MyState =
   | "initial"
@@ -33,6 +35,14 @@ class MyTest extends extender(Base, Telecoms, StateMachine(myTransitions, "initi
   }
 }
 
+interface ServerTest extends BreakGets, Logger, Telecoms, StateMachine<MyState> { }
+
+class ServerTest extends extender(Server_Break, Logger, Telecoms, StateMachine(myTransitions, 'initial')){
+  constructor(ns: NS, name: string){
+    super(ns, 'home');
+  }
+}
+
 export async function main(ns: NS) {
   ns.ui.setTailTitle(`Test | ${ns.formatRam(ns.getScriptRam('managers/test_manager.js'))}`);
 
@@ -40,7 +50,8 @@ export async function main(ns: NS) {
   ns.clearLog();
 
   const TestClass = new MyTest(ns);
-  
+  const BigServer = new ServerTest(ns, 'home');
+
   ns.write(TestClass.logFile, '', 'w');
   ns.print(TestClass.state);
   //TestClass.logging.verbose = true;
