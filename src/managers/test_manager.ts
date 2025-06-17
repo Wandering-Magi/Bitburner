@@ -1,7 +1,8 @@
 import { NS } from "@ns";
 import { Base, extender } from "/mixins/extender";
+import { LogLevel } from "/mixins/logger";
 import { StateMachine, Transitions } from "/mixins/state_machine";
-import { Logger } from "/mixins/logger";
+import { Telecoms } from "/mixins/telecom";
 
 type MyState =
   | "initial"
@@ -24,22 +25,30 @@ const myTransitions: Transitions<MyState> = {
   kill: [],
 };
 
-interface MyTest extends Base, StateMachine, Logger { }
+interface MyTest extends Base, Telecoms, StateMachine<MyState> { }
 
-class MyTest extends extender(Base, StateMachine(myTransitions, "initial"), Logger) {
+class MyTest extends extender(Base, Telecoms, StateMachine(myTransitions, "initial")) {
   constructor(ns: NS) {
     super(ns);
   }
 }
 
-export function main(ns: NS) {
+export async function main(ns: NS) {
   ns.ui.setTailTitle(`Test | ${ns.formatRam(ns.getScriptRam('managers/test_manager.js'))}`);
 
+  ns.disableLog('sleep');
   ns.clearLog();
 
   const TestClass = new MyTest(ns);
+  
+  ns.write(TestClass.logFile, '', 'w');
   ns.print(TestClass.state);
-  TestClass.logging.info = true;
+  //TestClass.logging.verbose = true;
+  TestClass.set_logging({info: true, debug: true});
+  const start = Date.now();
+  await TestClass.listen([100], 5000);
+  const runtime = Date.now() - start;
+  TestClass.LOG(LogLevel.INFO, 'MASTR', `Listen Runtime: ${runtime}`);
   TestClass.transition('scan_network');
-  ns.print(TestClass.state);
-}
+  //await TestClass.min_listen(ns);
+} 

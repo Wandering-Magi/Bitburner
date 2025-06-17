@@ -10,7 +10,7 @@ export enum LogLevel {
   INFO = "INFO",
   WARN = "WARN",
   ERROR = "ERROR",
-  VERBOSE = "VERBOSE"
+  VERBOSE = "VERBOSE",
 }
 
 type Logging = {
@@ -19,8 +19,11 @@ type Logging = {
   warn: boolean;
   error: boolean;
   verbose: boolean;
-}
+};
 export interface Logger {
+  readonly logFile: string;
+  hostname: string;
+  scriptName: string;
   logging: Logging;
   set_logging(levels: Partial<Logging>): void;
   LOG(level: LogLevel, label: string, ...args: unknown[]): void;
@@ -29,9 +32,13 @@ export interface Logger {
 // eslint-disable-next-line
 export const Logger = <TBase extends Constructor<HasNS>>(Base: TBase) =>
   class extends Base {
+    hostName: string;
+    scriptName: string;
     logging: Logging;
     constructor(...args: any[]) {
       super(...args);
+      this.hostName = this.ns.getHostname();
+      this.scriptName = this.ns.getScriptName();
       this.logging = {
         debug: false,
         info: false,
@@ -39,6 +46,10 @@ export const Logger = <TBase extends Constructor<HasNS>>(Base: TBase) =>
         error: false,
         verbose: false,
       };
+    }
+
+    get logFile(): string {
+      return `logs/${this.hostName}/${this.scriptName}.txt`;
     }
 
     /**
@@ -51,7 +62,7 @@ export const Logger = <TBase extends Constructor<HasNS>>(Base: TBase) =>
      * @example
      * set_logging({info: false, error: true});
      * @example
-     * set_logging({verbose: true}); 
+     * set_logging({verbose: true});
      */
     public set_logging(levels: Partial<Logging>) {
       /* Turn everything on if verbose is turned on */
@@ -69,6 +80,7 @@ export const Logger = <TBase extends Constructor<HasNS>>(Base: TBase) =>
 
     /**
      * The method to log output to the tail of a script
+     * It will write the log to "hostname/scriptName.txt"
      * @param {LogLevel} level - Which level the log should appear at
      * @param {string} label - The label to be shown, 5 char max
      * @param ...args - All other values to be sent to the console
@@ -93,7 +105,7 @@ export const Logger = <TBase extends Constructor<HasNS>>(Base: TBase) =>
         `${pad(now.getSeconds())}.` +
         `${pad(now.getMilliseconds(), 3)}`;
 
-      /* Render all lables in uppercase 
+      /* Render all lables in uppercase
        * limit them to 5 charaters for uniformity */
       const s_label =
         label.length > 5
@@ -104,6 +116,11 @@ export const Logger = <TBase extends Constructor<HasNS>>(Base: TBase) =>
         .map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a)))
         .join(" | ");
 
-      this.ns.print(`INFO | ${timestamp} | ${s_label} | ${s_args}`);
+      this.ns.write(
+        this.logFile,
+        `${level.padEnd(7, ' ')} | ${timestamp} | ${s_label} | ${s_args}\n`,
+        "a",
+      );
+      //this.ns.print(`INFO | ${timestamp} | ${s_label} | ${s_args}`);
     }
   };
