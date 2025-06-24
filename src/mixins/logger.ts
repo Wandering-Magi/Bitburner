@@ -41,9 +41,9 @@ export const Logger = <TBase extends Constructor<HasNS>>(Base: TBase) =>
       this.scriptName = this.ns.getScriptName();
       this.logging = {
         debug: false,
-        info: false,
+        info: true,
         warn: false,
-        error: false,
+        error: true,
         verbose: false,
       };
     }

@@ -11,6 +11,9 @@ type Timings = {
 }
 export interface Runtime {
   runtime: Timings,
+  log_total_time(...args: any[]): void;
+  log_checkpoint_start(): void;
+  log_checkpoint_end(): void;
 }
 /**
  * The mixin to track how long it takes for something to happen.

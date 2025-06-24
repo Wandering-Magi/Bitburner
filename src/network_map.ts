@@ -1,8 +1,15 @@
 import {NS} from "@ns";
 
-function build_network_tree(ns: NS, target: string)
+
+type NTServer = {
+  name: string,
+  children: NTServer[],
+  cct: string[],
+}
+
+function build_network_tree(ns: NS, target: string): NTServer
 {
-  let server = {
+  let server: NTServer = {
     name: target,
     children: [],
     cct: ns.ls(target, '.cct'),
@@ -11,7 +18,7 @@ function build_network_tree(ns: NS, target: string)
   let arr_children = ns.scan(target);
   if(target != 'home') arr_children.shift();
 
-  arr_children.forEach((child) => {
+  arr_children.forEach((child: string) => {
     server.children.push(
       build_network_tree(ns, child)
     );
@@ -22,7 +29,7 @@ function build_network_tree(ns: NS, target: string)
 
 function print_tree(
   ns: NS,
-  node: [],
+  node: NTServer,
   prefix: string = "",
   isLast: boolean = true,
   list_properties: boolean = false,

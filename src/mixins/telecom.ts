@@ -1,71 +1,111 @@
 import { Base } from "./extender";
 import { LogLevel } from "./logger";
+import { Network_Comms } from "/types/network_comm";
 
 type Constructor<T = object> = new (...args: any[]) => T;
 
-type Address = {
-  from: number;
-  to: number;
-};
-type telecom = {
-  address?: Address;
-};
 export interface Telecoms {
-  listen(pids: Array<number>, timeout: number): boolean;
+  outbound_message: string;
+  readonly inbound_message: string;
+  /**
+   * A timeout function to replace others like ns.sleep() and ns.nextWrite() for checking pid's.
+   * Allows listening to a port for a moment before going on to something else.
+   * Will slowly ramp loops out to 100ms or max_interval to save on resources for long-running scripts.
+   * Will log the first port with a valid message to the internal cache for use by inbound_message.
+   * @param {number[]} pids - an array of pid's to check
+   * @param {number} timeout - the amount of ms to wait before timeout
+   * @param {number} max_interval - (optional) the max amount of ms the loop should expand to
+   * @returns {number | null} pid of the message it received. null if nothing.
+   */
+  listen(pids: Array<number>, timeout: number, max_interval?: number): Promise<number | null>;
+  /**
+   * Clears the inbound message cache
+   */
+  clear_msg_cache(): void;
 }
-
 /**
  * The mixin to pass the telecommunications functions to other classes
  */
 export const Telecoms = <TBase extends Constructor<Base>>(Base: TBase) =>
   class extends Base {
+    private _inbound_cache: string;
+    private _port_cache: number | null;
+
+    outbound_message: string;
     constructor(...args: any[]) {
       super(...args);
+      this.outbound_message = '';
+      this._port_cache = null;
+      this._inbound_cache = '';
     }
 
-    async listen(pids: Array<number>, timeout: number): Promise<boolean> {
+    get inbound_message(): string {
+      /*First look if there is a new valid port to get a message from*/
+      if(this._port_cache !== null) {
+        let msg = this.ns.readPort(this._port_cache);
+        this._port_cache = null;
+        this._inbound_cache = msg;
+        return msg;
+      }
+      /*Get it from the cache*/
+      if(this._inbound_cache !== '')
+        return this._inbound_cache;
+      return '';
+    }
+
+    clear_msg_cache() {
+      this._inbound_cache = '';
+    }
+
+    parse_message(str?: string) {
+      let buffer = str || this.inbound_message;
+    }
+
+  /**
+   * A timeout function to replace others like ns.sleep() and ns.nextWrite() for checking pid's.
+   * Allows listening to a port for a moment before going on to something else.
+   * Will slowly ramp loops out to 1s to save on resources for long-running scripts
+   * @param {number[]} pids - an array of pid's to check
+   * @param {number} timeout - the amount of ms to wait before timeout
+   * @param {number} max_interval - (optional) the max amount of ms the loop should expand to
+   * @returns {number | null} pid of the message it received. null if nothing.
+   */
+    async listen(pids: Array<number>, timeout: number, max_interval?: number): Promise<number | null> {
       const LOG_LABEL = "TC-LS";
       const empty = "NULL PORT DATA";
-      const end = false;
-      let message = "";
+      let message_found = false;
       let interval = 1;
       let next_tick = Date.now() + interval;
       let duration = timeout;
       let count = 0;
 
       this.LOG(
-        LogLevel.INFO,
+        LogLevel.DEBUG,
         LOG_LABEL,
         `Now listening to pid's ${JSON.stringify(pids)} for up to ${timeout}ms`,
       );
-      /* Check PID's for messages */
-      while (!end) {
+      while (!message_found) {
+        this.LOG(LogLevel.VERBOSE, LOG_LABEL, `Starting loop I=${interval} D=${duration}`);
 
-        this.LOG(LogLevel.DEBUG, LOG_LABEL, `Starting loop I=${interval} D=${duration}`);
+        /* Check PID's for messages, will run one last time before timeout */
         for (const pid of pids ) {
-          /* peek and readPort separation keep message from being overwritten */
-          const check = this.ns.peek(pid); /* peek does not remove messages */
+          message_found = this.ns.peek(pid) !== empty; 
           this.LOG(
             LogLevel.VERBOSE,
             LOG_LABEL,
-            `${pid} has message ${String(check !== empty)}`,
+            `${pid} has message? ${String(message_found)}`,
           );
-          if (check !== empty) {
-            message = this.ns.readPort(pid); /* readPort does */
-            this.LOG(
-              LogLevel.INFO,
-              LOG_LABEL,
-              `Found message on ${pid} this.message => message`,
-            );
-            this.LOG(LogLevel.DEBUG, LOG_LABEL, `${message}`);
-          }
+          if(message_found){
+            this._port_cache = pid;
+            return pid;
+          } 
         }
-        if (message !== "") break;
-        this.LOG(LogLevel.DEBUG, LOG_LABEL, `Did not find any messages.`);
+
+        this.LOG(LogLevel.VERBOSE, LOG_LABEL, `Did not find any messages.`);
         
-        /* No messages received before it ran out of time */
+        /* No messages received before timeout */
         if (interval === 0){
-          this.LOG(LogLevel.DEBUG, LOG_LABEL, `Timeout reached.`);
+          this.LOG(LogLevel.DEBUG, LOG_LABEL, `Listen timed out.`);
           break;
         }
 
@@ -73,13 +113,12 @@ export const Telecoms = <TBase extends Constructor<Base>>(Base: TBase) =>
          * Every 100 loops, increase the interval by an order of magnitude
          * This should let long-running systems that only occasionally get information
          * use less resources overall.
-         * Max is 1000ms (1s).
-         * 10ms -> 100ms -> 1000ms
+         * 1ms -> 10ms -> 100ms
          */
 //        interval = Math.min(duration, interval);
-        if (interval * 10 < 1000 && interval * 10 < duration && count >= 100) {
+        if (interval * 10 < (max_interval || 100) && interval * 10 < duration && count >= 100) {
           interval *= 10;
-          this.LOG(LogLevel.DEBUG, LOG_LABEL, `Count reached, increasing interval to ${interval}`);
+          this.LOG(LogLevel.VERBOSE, LOG_LABEL, `Count reached, increasing interval to ${interval}`);
           count = 0;
         } else {
           count++;
@@ -89,7 +128,7 @@ export const Telecoms = <TBase extends Constructor<Base>>(Base: TBase) =>
         duration -= interval;
 
 
-        /* Drifting sleeps to stick close to intervals */
+        /* Drifting sleeps to stick close to expected intervals */
         const now = Date.now();
         const sleepTime = next_tick - now;
         this.LOG(LogLevel.VERBOSE, LOG_LABEL, `Sleeping for ${interval} ms`);
@@ -98,6 +137,6 @@ export const Telecoms = <TBase extends Constructor<Base>>(Base: TBase) =>
         next_tick += interval;
       }
       
-      return true;
+      return null;
     }
   };
