@@ -2,37 +2,16 @@ import { NS } from "@ns";
 import { Base, extender } from "/mixins/extender";
 import { Logger, LogLevel } from "/mixins/logger";
 import { Runtime } from "/mixins/runtime";
-import { StateMachine, Transitions } from "/mixins/state_machine";
+import { StateMachine } from "/mixins/state_machine";
 import { Telecoms } from "/mixins/telecom";
 import { Network_Comms } from "/types/network_comm";
 import { build_network_tree } from "/utils/network_builder";
 import { Server_Break } from "/utils/server/break";
 import { Server_String } from "/utils/server/string";
 
-type ValidStates =
-  | "initial"
-  | "idle"
-  | "scan_network"
-  | "write_port"
-  | "update_network"
-  | "validate_targets"
-  | "calc_batch"
-  | "kill";
-
-const allowed_transitions: Transitions<ValidStates> = {
-  initial: ["scan_network", "idle"],
-  scan_network: ["write_port"],
-  write_port: ["update_network"],
-  update_network: ["validate_targets"],
-  validate_targets: ["idle", "calc_batch"],
-  calc_batch: ["idle"],
-  idle: ["scan_network", "kill"],
-  kill: [],
-};
-
 type Scripts = {
   /**
-   * The filename of the script 
+   * The filename of the script
    * */
   name: string;
   /**
@@ -48,6 +27,8 @@ type Scripts = {
 type Network = {
   new: Server_Break | null;
   old: Server_Break | null;
+  readonly new_flat: Server_Break[] | [];
+  readonly old_flat: Server_Break[] | [];
 };
 
 type Targets = {
@@ -55,11 +36,7 @@ type Targets = {
   max: number;
 };
 
-interface Network_Manager
-  extends Logger,
-  Telecoms,
-  Runtime,
-  StateMachine<ValidStates> {
+interface Network_Manager extends Logger, Telecoms, Runtime, StateMachine {
   managed_scripts: Scripts[];
   network: Network;
   targets: Targets;
@@ -67,102 +44,119 @@ interface Network_Manager
 }
 
 class Network_Manager
-  extends extender(
-    Base,
-    Logger,
-    Telecoms,
-    Runtime,
-    StateMachine(allowed_transitions, "initial"),
-  )
-  implements Network_Manager {
+  extends extender(Base, Logger, Telecoms, Runtime, StateMachine)
+  implements Network_Manager
+{
   managed_scripts: Scripts[];
   targets: Targets;
+
+  /* Constants */
+  transitions = {
+    initial: ["scan_network", "idle"],
+    scan_network: ["write_port"],
+    write_port: ["update_network"],
+    update_network: ["validate_targets"],
+    validate_targets: ["idle", "calc_batch"],
+    calc_batch: ["idle"],
+    idle: ["scan_network", "kill"],
+    kill: [],
+  } as const;
+
+  state_handlers = {
+    initial: this.initial,
+    idle: this.idle,
+    scan_network: this.scan_network,
+    write_port: this.write_port,
+    update_network: this.update_network,
+    validate_targets: this.validate_targets,
+    calc_batch: this.calc_batch,
+    kill: this.kill,
+  } as const;
 
   constructor(ns: NS, name: string) {
     super(ns, name);
     this.managed_scripts = [];
-    this.network = {
-      new: null,
-      old: null,
-    };
+    this.network = new NetworkHolder();
     this.targets = {
       valid: [],
       max: 5,
     };
+    this.state = "initial";
   }
 
-  async process() {
-    while(true){
-      try{
-        switch (this.state) {
-          /*
-      case "":
-        this.start_state();
-        this.transition("idle");
-        break;
-      */
-          case "initial":
-            this.start_state();
-            this.transition("idle");
-            break;
+  /**==========================================================================
+   *                           Gets
+   *===========================================================================
+   */
 
-          case "idle":
-            this.start_state();
-            let msg_pid = await this.listen([], 1000);
-            if(typeof msg_pid === 'number'){
-            }
-            this.transition("scan_network");
-            break;
+  /**==========================================================================
+   *                            States
+   *===========================================================================
+   */
+  private initial() {
+    this.start_state();
+    this.transition("idle");
+  }
 
-          case "scan_network":
-            this.start_state();
-            this.network.new = build_network_tree(this.ns, "home");
-            this.transition("write_port");
-            break;
+  private kill() {
+    this.start_state();
+  }
 
-          case "write_port":
-            this.start_state();
-            this.write_network();
-            this.transition("update_network");
-            break;
-
-          case "update_network":
-            this.start_state();
-            this.network.old = this.network.new;
-            this.transition("validate_targets");
-            break;
-
-          case "validate_targets":
-            this.start_state();
-            this.find_valid_targets();
-            this.transition("calc_batch");
-            break;
-
-          case "calc_batch":
-            this.start_state();
-            this.calc_batch();
-            this.transition("idle");
-            break;
-
-          default:
-            break;
-        }
-
-      } catch(error) {
-        const msg = `Network Manager encountered an error: ${error}`;
-        this.LOG(LogLevel.ERROR, "NTMGR", msg);
-        throw msg;
-      }
-
+  private async idle(): Promise<void> {
+    this.start_state();
+    let msg_pid = await this.listen([], 1000);
+    if (typeof msg_pid === "number") {
     }
+    this.transition("scan_network");
   }
-  write_network(): boolean {
+
+  private scan_network() {
+    this.start_state();
+    this.network.new = build_network_tree(this.ns, "home");
+    this.transition("write_port");
+  }
+
+  private write_port() {
+    this.start_state();
+    this.write_network();
+    this.transition("update_network");
+  }
+
+  private update_network() {
+    this.start_state();
+    this.network.old = this.network.new;
+    this.transition("validate_targets");
+  }
+
+  private validate_targets() {
+    this.start_state();
+    this.find_valid_targets();
+    this.transition("calc_batch");
+  }
+
+  private calc_batch() {
+    this.start_state();
+
+    let hack = {
+      time: this.ns.getHackTime(this.targets.valid[0].name),
+      amount: this.ns.hackAnalyze(this.targets.valid[0].name),
+    };
+
+    this.ns.print(`Time: ${hack.time}ms\nAmount: ${hack.amount}`);
+
+    this.transition("idle");
+  }
+
+  /**==========================================================================
+   *                           Methods
+   *===========================================================================
+   */
+  private write_network(): boolean {
     this.LOG(LogLevel.DEBUG, "NTMGR", `write_network() start`);
     if (this.network.new === null) {
       this.LOG(LogLevel.ERROR, "NTMGR", `Did not find a valid network.`);
       return false;
     }
-    this.ns.ki
 
     const pid = this.ns.pid;
     this.ns.clearPort(pid);
@@ -183,53 +177,120 @@ class Network_Manager
 
   find_valid_targets() {
     this.LOG(LogLevel.DEBUG, "NTMGR", `find_valid_targets() start`);
-    if (this.network.new === null) return;
-
-    let network_arr: Server_Break[] = [];
-    /**
-     * Quick helper function to:
-     * - Collapse the network into a flat array
-     * - Sort out unwanted nodes
-     */
-    function traverse(node: Server_String) {
-      if (node instanceof Server_Break && node.security.root && node.score > 0)
-        network_arr.push(node as Server_Break);
-
-      if (node.children && node.children.length > 0) {
-        node.children.forEach((child) => traverse(child));
-      }
-    }
-    traverse(this.network.new);
+    if (this.network.new_flat.length === 0) this.targets.valid = [];
+    
+    /* Get only targets with root access and a proper score value */
+    let target_arr = [...this.network.new_flat].filter(node => node.security.root && node.score > 0 );
 
     /* Sort the targets by high to low score */
-    network_arr.sort((a, b) => b.score - a.score);
+    target_arr.sort((a,b) => b.score - a.score);
+
     /* Truncate it to the maximum tracked targets */
-    network_arr = network_arr.slice(0, this.targets.max);
+    target_arr = target_arr.slice(0, this.targets.max);
 
     /* Log it if the layout of the targets change */
     if (
       this.targets.valid.length === 0 ||
       (this.targets.valid.length > 0 &&
-        network_arr.every(
+        target_arr.every(
           (node, i) => node.name !== this.targets.valid[i].name,
         ))
     )
       this.LOG(
         LogLevel.INFO,
         "NTMGR",
-        `Targets update: ${JSON.stringify(network_arr.map((node) => node.name))}`,
+        `Targets update: ${JSON.stringify(target_arr.map((node) => node.name))}`,
       );
 
-    this.targets.valid = network_arr;
+    this.targets.valid = target_arr;
   }
 
-  calc_batch(){
-    let hack = {
-      time: this.ns.getHackTime(this.targets.valid[0].name),
-      amount: this.ns.hackAnalyze(this.targets.valid[0].name),
-    }
+  calc_network_ram() {
+    this.LOG(LogLevel.DEBUG, "NTMGR", `calc_network_ram() start`);
+    if (this.network.new_flat.length === 0) this.targets.valid = [];
+    
+    /* Limit to nodes with a max ram value that we have root access to */
+    let ram_arr = [...this.network.new_flat].filter(node => node.security.root && node.ram.max > 0);
 
-    this.ns.print(`Time: ${hack.time}ms\nAmount: ${hack.amount}`);
+
+
+  }
+
+  flatten_network() {
+    this.LOG(LogLevel.DEBUG, "NTMGR", `flatten_network() start`);
+    if (this.network.new === null) return [];
+
+    let network_arr: Server_Break[] = [];
+    /* Helper functon for recursive traverse */
+    function traverse(node: Server_String) {
+      if (node instanceof Server_Break && node.security.root) {
+        network_arr.push(node as Server_Break);
+      }
+      if (node.children && node.children.length > 0) {
+        node.children.forEach((child) => traverse(child));
+      }
+    }
+    /* Now traverse the network */
+    traverse(this.network.new);
+
+    return network_arr;
+  }
+}
+
+function make_network_holder(): Network {
+  const network = {
+    new: null as Server_Break | null,
+    old: null as Server_Break | null,
+  };
+  Object.defineProperty(network, "flat", {
+    get: function () {
+      return network.new && network.old
+        ? ([network.new, network.old].filter(
+            (x) => x !== null,
+          ) as Server_Break[])
+        : [];
+    },
+    enumerable: true,
+  });
+  return network as Network;
+}
+
+class NetworkHolder extends extender(Base, Logger) {
+  new: Server_Break | null;
+  old: Server_Break | null;
+
+  constructor() {
+    super();
+    this.new = null;
+    this.old = null;
+  }
+
+  get new_flat(): Server_Break[] | [] {
+    return this.flatten_network(this.new);
+  }
+
+  get old_flat(): Server_Break[] | [] {
+    return this.flatten_network(this.new);
+  }
+
+  flatten_network(net: Server_Break | null) {
+    this.LOG(LogLevel.DEBUG, "NTMGR", `flatten_network() start`);
+    if (net === null) return [];
+
+    let network_arr: Server_Break[] = [];
+    /* Helper functon for recursive traverse */
+    function traverse(node: Server_String) {
+      if (node instanceof Server_Break && node.security.root) {
+        network_arr.push(node as Server_Break);
+      }
+      if (node.children && node.children.length > 0) {
+        node.children.forEach((child) => traverse(child));
+      }
+    }
+    /* Now traverse the network */
+    traverse(net);
+
+    return network_arr;
   }
 }
 
@@ -245,6 +306,6 @@ export async function main(ns: NS) {
 
   //manager.set_logging({ error: true, info: true });
   //for (let i = 0; i < 500; i++) {
-    await manager.process();
+  await manager.process();
   //}
 }
