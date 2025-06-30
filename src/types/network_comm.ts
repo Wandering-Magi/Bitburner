@@ -37,6 +37,7 @@ type Commands = {
 type Responses = {
   ping?: DateConstructor,
   complete?: boolean,
+  online?: boolean,
 }
 
 export type ValidAttacks = 

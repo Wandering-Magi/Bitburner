@@ -5,8 +5,8 @@ import { Network_Comms } from "/types/network_comm";
 type Constructor<T = object> = new (...args: any[]) => T;
 
 export interface Telecoms {
-  outbound_message: string;
-  readonly inbound_message: string;
+  outbound_message: string | null;
+  readonly inbound_message: string | null;
   /**
    * A timeout function to replace others like ns.sleep() and ns.nextWrite() for checking pid's.
    * Allows listening to a port for a moment before going on to something else.
@@ -28,21 +28,21 @@ export interface Telecoms {
  */
 export const Telecoms = <TBase extends Constructor<Base>>(Base: TBase) =>
   class extends Base {
-    private _inbound_cache: string;
+    private _inbound_cache: string | null;
     private _port_cache: number | null;
 
-    outbound_message: string;
+    outbound_message: string | null;
     constructor(...args: any[]) {
       super(...args);
-      this.outbound_message = '';
+      this.outbound_message = null;
       this._port_cache = null;
-      this._inbound_cache = '';
+      this._inbound_cache = null;
     }
 
-    get inbound_message(): string {
+    get inbound_message(): string | null {
       /*First look if there is a new valid port to get a message from*/
       if(this._port_cache !== null) {
-        let msg = this.ns.readPort(this._port_cache);
+        const msg = this.ns.readPort(this._port_cache);
         this._port_cache = null;
         this._inbound_cache = msg;
         return msg;
@@ -50,7 +50,7 @@ export const Telecoms = <TBase extends Constructor<Base>>(Base: TBase) =>
       /*Get it from the cache*/
       if(this._inbound_cache !== '')
         return this._inbound_cache;
-      return '';
+      return null;
     }
 
     clear_msg_cache() {
@@ -58,7 +58,7 @@ export const Telecoms = <TBase extends Constructor<Base>>(Base: TBase) =>
     }
 
     parse_message(str?: string) {
-      let buffer = str || this.inbound_message;
+      const buffer = str || this.inbound_message;
     }
 
   /**

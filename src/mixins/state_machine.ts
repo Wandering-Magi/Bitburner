@@ -15,7 +15,7 @@ export interface StateMachine {
 }
 
 export const StateMachine = <TBase extends Constructor<Base>>(Base: TBase) =>
-  class StateMachine extends Base {
+  class extends Base {
     state!: State;
     transitions!: Transitions<State>;
     state_handlers!: StateHandlers<State>;
@@ -25,12 +25,12 @@ export const StateMachine = <TBase extends Constructor<Base>>(Base: TBase) =>
     }
 
     async process() {
-      while (true) {
+      while (this.state != "kill") {
         try {
           await this.state_handlers[this.state]();
         } catch (error) {
-          const msg = `Network Manager encountered an error: ${error}`;
-          this.LOG(LogLevel.ERROR, "NTMGR", msg);
+          const msg = `StateMachine encountered an error: ${error}`;
+          this.LOG(LogLevel.ERROR, "STATE", msg);
           throw msg;
         }
       }
