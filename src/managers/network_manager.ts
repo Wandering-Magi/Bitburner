@@ -24,22 +24,9 @@ type Scripts = {
   pid: number;
 };
 
-type Network = {
-  new: Server_Break | null;
-  old: Server_Break | null;
-  readonly new_flat: Server_Break[] | [];
-  readonly old_flat: Server_Break[] | [];
-};
-
-type Targets = {
-  valid: Server_String[];
-  max: number;
-};
 
 interface Network_Manager extends Logger, Telecoms, Runtime, StateMachine {
   managed_scripts: Scripts[];
-  network: Network;
-  targets: Targets;
   process(): Promise<void>;
 }
 
@@ -47,7 +34,6 @@ class Network_Manager
   extends extender(Base, Logger, Telecoms, Runtime, StateMachine)
   implements Network_Manager {
   managed_scripts: Scripts[];
-  targets: Targets;
   scheduler_started: boolean;
 
   /* Constants */
@@ -74,11 +60,6 @@ class Network_Manager
   constructor(ns: NS, name: string) {
     super(ns, name);
     this.managed_scripts = [];
-    this.network = new NetworkHolder();
-    this.targets = {
-      valid: [],
-      max: 5,
-    };
     this.state = "startup";
     this.scheduler_started = false;
   }
@@ -244,43 +225,6 @@ function make_network_holder(): Network {
   });
   return network as Network;
 }*/
-
-class NetworkHolder {
-  new: Server_Break | null;
-  old: Server_Break | null;
-
-  constructor() {
-    this.new = null;
-    this.old = null;
-  }
-
-  get new_flat(): Server_Break[] | [] {
-    return this.flatten_network(this.new);
-  }
-
-  get old_flat(): Server_Break[] | [] {
-    return this.flatten_network(this.new);
-  }
-
-  flatten_network(net: Server_Break | null) {
-    if (net === null) return [];
-
-    const network_arr: Server_Break[] = [];
-    /* Helper functon for recursive traverse */
-    function traverse(node: Server_String) {
-      if (node instanceof Server_Break && node.security.root) {
-        network_arr.push(node as Server_Break);
-      }
-      if (node.children && node.children.length > 0) {
-        node.children.forEach((child) => traverse(child));
-      }
-    }
-    /* Now traverse the network */
-    traverse(net);
-
-    return network_arr;
-  }
-}
 
 export async function main(ns: NS) {
   ns.ui.setTailTitle(
